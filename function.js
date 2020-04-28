@@ -1,48 +1,38 @@
 const https = require('https');
 const url = require('url');
 
-module.exports = (context, req) => {
-  const dropboxUrlParam = req.query.dropboxUrl;
+/**
+ * ORIGINAL IMPLEMENTAITON: https://github.com/msbit/dropbox-cors-redirect/blob/master/function.js
+ */
+export default {
+    path: '/tunnel',
+    handler(req, res) {
 
-  if (!dropboxUrlParam || !dropboxUrlParam.startsWith('https://www.dropbox.com/')) {
-    context.res = {
-      body: {
-        error: 'Forbidden'
-      },
-      status: 403
-    };
-    context.done();
-    return;
-  }
+        const dropboxUrlParam = req.query.url;
 
-  const dropboxUrl = url.parse(dropboxUrlParam);
-  const dropboxUrlPath = dropboxUrl.path;
-  const dropboxUrlPathParts = dropboxUrlPath.split('/');
-  const dropboxUrlRawPath = [dropboxUrlPathParts[1], 'raw', dropboxUrlPathParts[2], dropboxUrlPathParts[3]].join('/');
+        if (!dropboxUrlParam || !dropboxUrlParam.startsWith('https://www.dropbox.com/')) {
+            return res.status(403)
+                .send({ error: 'Forbidden' });
+        }
 
-  https.get(`https://${dropboxUrl.hostname}/${dropboxUrlRawPath}`, result => {
-    if (result.statusCode !== 302) {
-      context.res = {
-        body: {
-          error: result.statusMessage
-        },
-        status: result.statusCode
-      };
-      context.done();
-      return;
+        const dropboxUrl = url.parse(dropboxUrlParam);
+        const dropboxUrlPath = dropboxUrl.path;
+        const dropboxUrlPathParts = dropboxUrlPath.split('/');
+        const dropboxUrlRawPath = [dropboxUrlPathParts[1], 'raw', dropboxUrlPathParts[2], dropboxUrlPathParts[3]].join('/');
+
+        https.get(`https://${dropboxUrl.hostname}/${dropboxUrlRawPath}`, result => {
+
+            if (result.statusCode !== 302) {
+                return res.status(result.statusCode)
+                    .send({ error: result.statusMessage });
+            }
+
+            res.set('location', result.headers['location']);
+            res.set('Access-Control-Allow-Origin', '*');
+            res.status(result.statusCode)
+                .send();
+
+        });
+        
     }
-
-    let headers = {};
-
-    headers['location'] = result.headers['location'];
-
-    headers['access-control-allow-origin'] = '*';
-
-    context.res = {
-      body: null,
-      headers: headers,
-      status: result.statusCode
-    };
-    context.done();
-  });
-};
+}
